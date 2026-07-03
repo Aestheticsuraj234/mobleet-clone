@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/state/auth-store'
 import { Stack, useRouter, useSegments } from 'expo-router'
+import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
 import { useEffect } from 'react'
 import 'react-native-url-polyfill/auto'
@@ -13,13 +14,11 @@ function RootNavigator() {
   const segments = useSegments()
   const router = useRouter()
 
-  // Bootstrap auth once
   useEffect(() => {
     const cleanup = initialize()
     return cleanup
   }, [initialize])
 
-  // Route guard
   useEffect(() => {
     if (isLoading) return
 
@@ -34,9 +33,22 @@ function RootNavigator() {
     SplashScreen.hideAsync()
   }, [session, isLoading, segments, router])
 
-  return <Stack screenOptions={{ headerShown: false }} />
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: '#0a0a0c' },
+        animation: 'fade',
+      }}
+    />
+  )
 }
 
 export default function RootLayout() {
-  return <RootNavigator />
+  return (
+    <>
+      <StatusBar style="light" />
+      <RootNavigator />
+    </>
+  )
 }
