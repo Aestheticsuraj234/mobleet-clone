@@ -1,27 +1,34 @@
-import useBearStore from "@/state";
-import { Button, StyleSheet, Text, View } from "react-native";
+import { UserMenu } from '@/components/user-menu'
+import useBearStore from '@/state'
+import { Button, ScrollView, StyleSheet, Text } from 'react-native'
 
 export default function Index() {
-  const bears = useBearStore(({ bears }) => bears);
-  const { increasePopulation } = useBearStore();
+  const bears = useBearStore(({ bears }) => bears)
+  const { increasePopulation } = useBearStore()
+
   return (
-    <View style={styles.container}>
-        <Text style={styles.heading}>Total sightings: {bears}</Text>
-        <Button title="Increase population" onPress={() => increasePopulation()} />
+    <ScrollView
+      contentContainerStyle={styles.container}
+      contentInsetAdjustmentBehavior="automatic"
+    >
+      <UserMenu />
+      <Text style={styles.heading}>Total sightings: {bears}</Text>
+      <Button title="Increase population" onPress={() => increasePopulation()} />
       <Text>Edit src/app/index.tsx to edit this screen.</Text>
-    </View>
-  );
+    </ScrollView>
+  )
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 20,
+    padding: 24,
   },
   heading: {
     fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 20,
+    fontWeight: 'bold',
   },
-});
+})
