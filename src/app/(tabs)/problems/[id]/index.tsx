@@ -1,16 +1,19 @@
+import { useAuth } from '@/hooks/use-auth'
 import { useScreenInsets } from '@/hooks/use-screen-insets'
 import {
   difficultyTint,
   fetchProblemById,
+  fetchUserSubmissionsForProblem,
   getConstraintLines,
   getExamples,
   type LanguageExample,
   type Problem,
+  type SubmissionListItem,
 } from '@/lib/problems'
 import { colors } from '@/lib/theme'
 import { Feather, Ionicons } from '@expo/vector-icons'
-import { router, useLocalSearchParams } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router'
+import { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -36,11 +39,14 @@ export default function ProblemDetailsScreen() {
     bottomExtra: 28,
     topExtra: 8,
   })
+  const { user } = useAuth()
   const { id } = useLocalSearchParams<{ id: string }>()
   const [problem, setProblem] = useState<Problem | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('description')
+  const [submissions, setSubmissions] = useState<SubmissionListItem[]>([])
+  const [submissionsLoading, setSubmissionsLoading] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -67,6 +73,16 @@ export default function ProblemDetailsScreen() {
       active = false
     }
   }, [id])
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!id || !user?.id) return
+      setSubmissionsLoading(true)
+      fetchUserSubmissionsForProblem(user.id, id)
+        .then(setSubmissions)
+        .finally(() => setSubmissionsLoading(false))
+    }, [id, user?.id])
+  )
 
   if (loading) {
     return (
@@ -194,10 +210,9 @@ export default function ProblemDetailsScreen() {
               />
             ) : null}
             {activeTab === 'submissions' ? (
-              <LockedTab
-                title="No submissions yet"
-                subtitle="Once you run your first attempt it will appear here."
-                icon="inbox"
+              <SubmissionsTab
+                submissions={submissions}
+                loading={submissionsLoading}
               />
             ) : null}
           </View>
@@ -365,6 +380,92 @@ function LockedTab({
       </View>
       <Text style={styles.lockedTitle}>{title}</Text>
       <Text style={styles.lockedSubtitle}>{subtitle}</Text>
+    </View>
+  )
+}
+
+function statusTint(status: string) {
+  if (status.toLowerCase().includes('accepted')) {
+    return { fg: colors.success, bg: colors.successBg }
+  }
+  if (status.toLowerCase().includes('wrong')) {
+    return { fg: colors.danger, bg: colors.dangerBg }
+  }
+  return { fg: colors.warning, bg: colors.warningBg }
+}
+
+function SubmissionsTab({
+  submissions,
+  loading,
+}: {
+  submissions: SubmissionListItem[]
+  loading: boolean
+}) {
+  if (loading) {
+    return (
+      <View style={styles.submissionsLoading}>
+        <ActivityIndicator color={colors.lime} />
+      </View>
+    )
+  }
+
+  if (submissions.length === 0) {
+    return (
+      <LockedTab
+        title="No submissions yet"
+        subtitle="Once you run your first attempt it will appear here."
+        icon="inbox"
+      />
+    )
+  }
+
+  return (
+    <View style={styles.submissionsList}>
+      {submissions.map((submission) => {
+        const tint = statusTint(submission.status)
+        return (
+          <View key={submission.id} style={styles.submissionCard}>
+            <View style={styles.submissionTop}>
+              <View style={[styles.statusBadge, { backgroundColor: tint.bg }]}>
+                <Text style={[styles.statusBadgeText, { color: tint.fg }]}>
+                  {submission.status.toUpperCase()}
+                </Text>
+              </View>
+              <Text style={styles.submissionDate}>
+                {new Date(submission.created_at).toLocaleString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })}
+              </Text>
+            </View>
+
+            <View style={styles.submissionMeta}>
+              <View style={styles.submissionMetaItem}>
+                <Feather name="code" size={12} color={colors.muted} />
+                <Text style={styles.submissionMetaText}>
+                  {submission.language}
+                </Text>
+              </View>
+              {submission.time ? (
+                <View style={styles.submissionMetaItem}>
+                  <Feather name="clock" size={12} color={colors.muted} />
+                  <Text style={styles.submissionMetaText}>{submission.time}</Text>
+                </View>
+              ) : null}
+              {submission.memory ? (
+                <View style={styles.submissionMetaItem}>
+                  <Feather name="cpu" size={12} color={colors.muted} />
+                  <Text style={styles.submissionMetaText}>
+                    {submission.memory}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        )
+      })}
     </View>
   )
 }
@@ -633,6 +734,55 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     textAlign: 'center',
     marginTop: 8,
+  },
+  submissionsLoading: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  submissionsList: {
+    gap: 12,
+  },
+  submissionCard: {
+    borderRadius: 16,
+    padding: 14,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  submissionTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+  },
+  submissionDate: {
+    color: colors.muted,
+    fontSize: 12,
+  },
+  submissionMeta: {
+    marginTop: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  submissionMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  submissionMetaText: {
+    color: colors.muted,
+    fontSize: 12,
   },
   footer: {
     marginTop: 24,

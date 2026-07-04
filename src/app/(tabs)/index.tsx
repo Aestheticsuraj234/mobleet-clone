@@ -2,6 +2,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useScreenInsets } from '@/hooks/use-screen-insets'
 import { fetchProblems, fetchSolvedCount } from '@/lib/problems'
 import { colors } from '@/lib/theme'
+import { getAvatar, getDisplayName, getInitials } from '@/lib/user'
 import { Feather, Ionicons } from '@expo/vector-icons'
 import { router } from 'expo-router'
 import { useEffect, useState } from 'react'
@@ -16,58 +17,16 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-function getDisplayName(user: NonNullable<ReturnType<typeof useAuth>['user']>) {
-  return (
-    user.user_metadata?.full_name ??
-    user.user_metadata?.name ??
-    user.email ??
-    'Rider'
-  )
-}
-
-function getAvatar(user: NonNullable<ReturnType<typeof useAuth>['user']>) {
-  return user.user_metadata?.avatar_url ?? user.user_metadata?.picture
-}
-
-function getInitials(label: string) {
-  const parts = label.split(/\s+/).filter(Boolean)
-  if (parts.length >= 2) {
-    return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-  }
-  return label.slice(0, 2).toUpperCase()
-}
-
 export default function HomeScreen() {
-  const { contentPadding } = useScreenInsets({
-    bottomExtra: 24,
-    topExtra: 8,
-  })
+  const { contentPadding } = useScreenInsets({ bottomExtra: 24, topExtra: 8 })
   const { user, isLoading } = useAuth()
   const [firstProblemId, setFirstProblemId] = useState<string | null>(null)
   const [solvedCount, setSolvedCount] = useState(0)
 
   useEffect(() => {
-    let active = true
-
-    async function load() {
-      try {
-        const problems = await fetchProblems()
-        if (!active) return
-        setFirstProblemId(problems[0]?.id ?? null)
-
-        if (user?.id) {
-          const count = await fetchSolvedCount(user.id)
-          if (active) setSolvedCount(count)
-        }
-      } catch {
-        // UI-only: keep defaults on fetch failure
-      }
-    }
-
-    void load()
-    return () => {
-      active = false
-    }
+    if (!user?.id) return
+    fetchProblems().then((problems) => setFirstProblemId(problems[0]?.id ?? null))
+    fetchSolvedCount(user.id).then(setSolvedCount)
   }, [user?.id])
 
   if (isLoading || !user) {

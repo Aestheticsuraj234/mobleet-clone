@@ -12,14 +12,8 @@ import {
   type TextStyle,
 } from 'react-native'
 
-/**
- * One-dark–inspired palette on #0f1014.
- * Slightly higher luminance than desktop themes so code stays readable on phones
- * (outdoor / auto-brightness) and under the transparent TextInput overlay on Android.
- */
 const COLORS: Record<string, string> = {
   plain: '#f4f4f5',
-  default: '#f4f4f5',
   comment: '#86c47a',
   prolog: '#86c47a',
   doctype: '#86c47a',
@@ -50,92 +44,34 @@ const COLORS: Record<string, string> = {
   regex: '#a6d98c',
   important: '#d69ff0',
   keyword: '#d69ff0',
-  bold: '#f4f4f5',
-  italic: '#f4f4f5',
-}
-
-export type CodeEditorProps = {
-  value: string
-  onValueChange: (text: string) => void
-  language: LanguageId
-  minHeight?: number
-  placeholder?: string
 }
 
 const H_PAD = 12
 const V_PAD = 12
+const mono = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'Courier' })
 
-function colorForToken(type: string): string {
-  return COLORS[type] ?? COLORS.plain
-}
-
-function renderItem(
-  item: string | Token,
-  key: string,
-  textStyle: TextStyle
-): ReactNode {
+function renderItem(item: string | Token, key: string, textStyle: TextStyle): ReactNode {
   if (typeof item === 'string') {
-    return (
-      <Text key={key} style={[textStyle, { color: COLORS.plain }]}>
-        {item}
-      </Text>
-    )
+    return <Text key={key} style={[textStyle, { color: COLORS.plain }]}>{item}</Text>
   }
-  const token = item
-  const fg = colorForToken(token.type)
-  const content = token.content
+  const color = COLORS[item.type] ?? COLORS.plain
+  const content = item.content
   if (typeof content === 'string') {
-    return (
-      <Text key={key} style={[textStyle, { color: fg }]}>
-        {content}
-      </Text>
-    )
+    return <Text key={key} style={[textStyle, { color }]}>{content}</Text>
   }
   return (
-    <Text key={key} style={[textStyle, { color: fg }]}>
-      {renderTokenStream(content, `${key}-c`, textStyle)}
+    <Text key={key} style={[textStyle, { color }]}>
+      {renderStream(content, `${key}-c`, textStyle)}
     </Text>
   )
 }
 
-function renderTokenStream(
-  stream: TokenStream,
-  path: string,
-  textStyle: TextStyle
-): ReactNode[] {
-  if (typeof stream === 'string') {
-    return [renderItem(stream, path, textStyle)]
-  }
+function renderStream(stream: TokenStream, path: string, textStyle: TextStyle): ReactNode[] {
+  if (typeof stream === 'string') return [renderItem(stream, path, textStyle)]
   if (Array.isArray(stream)) {
     return stream.map((item, i) => renderItem(item, `${path}-${i}`, textStyle))
   }
   return [renderItem(stream, path, textStyle)]
-}
-
-function highlightToNodes(
-  code: string,
-  language: LanguageId,
-  textStyle: TextStyle
-): ReactNode[] | null {
-  if (!code) return null
-  try {
-    const grammar = grammarForLanguage(language)
-    if (!grammar) {
-      return [
-        <Text key="plain" style={[textStyle, { color: COLORS.plain }]}>
-          {code}
-        </Text>,
-      ]
-    }
-    const tokens = Prism.tokenize(code, grammar) as TokenStream
-    return renderTokenStream(tokens, 't', textStyle)
-  } catch {
-    return [
-      <Text key="fallback" style={[textStyle, { color: COLORS.plain }]}>
-        {code}
-      </Text>,
-    ]
-  }
 }
 
 export function CodeEditor({
@@ -144,41 +80,40 @@ export function CodeEditor({
   language,
   minHeight = 280,
   placeholder = '// Write your solution here',
-}: CodeEditorProps) {
+}: {
+  value: string
+  onValueChange: (text: string) => void
+  language: LanguageId
+  minHeight?: number
+  placeholder?: string
+}) {
   const textStyle = useMemo(
     () => ({
-      fontFamily: Platform.select({
-        ios: 'Menlo',
-        android: 'monospace',
-        default: 'Courier',
-      }) as string,
+      fontFamily: mono as string,
       fontSize: 14,
       lineHeight: 22,
-      /** Base color so nested spans and any fallback text are always high-contrast */
       color: COLORS.plain,
       ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
     }),
     []
   )
 
-  const highlighted = useMemo(
-    () => highlightToNodes(value, language, textStyle),
-    [value, language, textStyle]
-  )
+  const highlighted = useMemo(() => {
+    if (!value) return null
+    const grammar = grammarForLanguage(language)
+    if (!grammar) {
+      return <Text style={[textStyle, { color: COLORS.plain }]}>{value}</Text>
+    }
+    return renderStream(Prism.tokenize(value, grammar) as TokenStream, 't', textStyle)
+  }, [value, language, textStyle])
 
   return (
     <View style={{ position: 'relative', width: '100%' }}>
-      {/* Prism layer (read-only), 1:1 under the TextInput */}
       <View
-        style={[
-          StyleSheet.absoluteFillObject,
-          { paddingHorizontal: H_PAD, paddingVertical: V_PAD },
-        ]}
+        style={[StyleSheet.absoluteFillObject, { paddingHorizontal: H_PAD, paddingVertical: V_PAD }]}
         pointerEvents="none"
       >
-        <Text style={textStyle} selectable={false}>
-          {highlighted}
-        </Text>
+        <Text style={textStyle} selectable={false}>{highlighted}</Text>
       </View>
 
       <TextInput
@@ -193,9 +128,7 @@ export function CodeEditor({
         placeholderTextColor="#71717a"
         underlineColorAndroid="transparent"
         selectionColor="rgba(189, 240, 110, 0.45)"
-        {...(Platform.OS === 'android'
-          ? { cursorColor: '#f4f4f5' as const }
-          : {})}
+        {...(Platform.OS === 'android' ? { cursorColor: '#f4f4f5' as const } : {})}
         style={[
           textStyle,
           {
@@ -205,13 +138,9 @@ export function CodeEditor({
             paddingHorizontal: H_PAD,
             paddingVertical: V_PAD,
             textAlignVertical: 'top',
-            /**
-             * Android often treats the keyword `transparent` as low-alpha grey and draws
-             * it on top of the syntax layer, washing out the highlight. Full alpha-0 fixes it.
-             */
+            // Android: use alpha-0, not `transparent`, or highlight washes out.
             color: 'rgba(255,255,255,0)',
             backgroundColor: 'transparent',
-            ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
           },
         ]}
       />

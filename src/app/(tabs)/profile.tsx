@@ -1,8 +1,12 @@
+import { ActivityHeatmap } from '@/components/activity-heatmap'
 import { useAuth } from '@/hooks/use-auth'
 import { useScreenInsets } from '@/hooks/use-screen-insets'
+import { fetchSolvedCount, fetchUserSubmissionActivity } from '@/lib/problems'
 import { colors } from '@/lib/theme'
+import { getAvatar, getDisplayName, getInitials } from '@/lib/user'
 import { Feather } from '@expo/vector-icons'
-import { useState } from 'react'
+import { useFocusEffect } from 'expo-router'
+import { useCallback, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -15,49 +19,37 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-function getDisplayName(user: NonNullable<ReturnType<typeof useAuth>['user']>) {
-  return (
-    user.user_metadata?.full_name ??
-    user.user_metadata?.name ??
-    user.email ??
-    'MobLeet User'
-  )
-}
-
-function getAvatar(user: NonNullable<ReturnType<typeof useAuth>['user']>) {
-  return user.user_metadata?.avatar_url ?? user.user_metadata?.picture
-}
-
-function getInitials(label: string) {
-  const parts = label.split(/\s+/).filter(Boolean)
-  if (parts.length >= 2) {
-    return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-  }
-  return label.slice(0, 2).toUpperCase()
-}
-
 export default function ProfileScreen() {
-  const { contentPadding } = useScreenInsets({
-    bottomExtra: 24,
-    topExtra: 12,
-  })
+  const { contentPadding } = useScreenInsets({ bottomExtra: 24, topExtra: 12 })
   const { user, isLoading, signOut } = useAuth()
   const [signingOut, setSigningOut] = useState(false)
+  const [activity, setActivity] = useState<Map<string, number>>(new Map())
+  const [solvedCount, setSolvedCount] = useState(0)
+  const [statsLoading, setStatsLoading] = useState(true)
 
-  async function handleSignOut() {
-    if (signingOut) return
-    setSigningOut(true)
-    try {
-      await signOut()
-    } catch (err) {
-      Alert.alert(
-        'Sign out failed',
-        err instanceof Error ? err.message : 'Unknown error'
-      )
-    } finally {
-      setSigningOut(false)
-    }
-  }
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id) return
+      setStatsLoading(true)
+      Promise.all([
+        fetchUserSubmissionActivity(user.id),
+        fetchSolvedCount(user.id),
+      ])
+        .then(([activityMap, solved]) => {
+          setActivity(activityMap)
+          setSolvedCount(solved)
+        })
+        .finally(() => setStatsLoading(false))
+    }, [user?.id])
+  )
+
+  const totalSubmissions = useMemo(() => {
+    let total = 0
+    activity.forEach((n) => {
+      total += n
+    })
+    return total
+  }, [activity])
 
   if (isLoading || !user) {
     return (
@@ -69,7 +61,6 @@ export default function ProfileScreen() {
 
   const displayName = getDisplayName(user)
   const avatarUrl = getAvatar(user)
-  const initials = getInitials(displayName)
 
   return (
     <View style={styles.screen}>
@@ -77,7 +68,6 @@ export default function ProfileScreen() {
         <ScrollView
           contentContainerStyle={[styles.scroll, contentPadding]}
           showsVerticalScrollIndicator={false}
-          contentInsetAdjustmentBehavior="automatic"
         >
           <Text style={styles.title}>Profile</Text>
           <Text style={styles.subtitle}>Manage your MobLeet account.</Text>
@@ -87,20 +77,34 @@ export default function ProfileScreen() {
               {avatarUrl ? (
                 <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
               ) : (
-                <Text style={styles.avatarInitials}>{initials}</Text>
+                <Text style={styles.avatarInitials}>{getInitials(displayName)}</Text>
               )}
             </View>
             <Text style={styles.name}>{displayName}</Text>
-            <Text style={styles.email}>{user.email ?? 'No email'}</Text>
+            <Text style={styles.email}>{user.email}</Text>
           </View>
 
+          <View style={styles.statsRow}>
+            <StatCard label="Solved" value={statsLoading ? '—' : String(solvedCount)} tint={colors.lime} />
+            <StatCard label="Submissions" value={statsLoading ? '—' : String(totalSubmissions)} tint={colors.peach} />
+            <StatCard label="Active days" value={statsLoading ? '—' : String(activity.size)} tint={colors.mint} />
+          </View>
+
+          <ActivityHeatmap activity={activity} loading={statsLoading} />
+
           <Pressable
-            onPress={handleSignOut}
+            onPress={async () => {
+              setSigningOut(true)
+              try {
+                await signOut()
+              } catch (err) {
+                Alert.alert('Sign out failed', err instanceof Error ? err.message : 'Unknown error')
+              } finally {
+                setSigningOut(false)
+              }
+            }}
             disabled={signingOut}
-            style={({ pressed }) => [
-              styles.signOutButton,
-              (pressed || signingOut) && styles.pressed,
-            ]}
+            style={({ pressed }) => [styles.signOutButton, (pressed || signingOut) && styles.pressed]}
           >
             {signingOut ? (
               <ActivityIndicator color={colors.danger} />
@@ -117,34 +121,28 @@ export default function ProfileScreen() {
   )
 }
 
+function StatCard({ label, value, tint }: { label: string; value: string; tint: string }) {
+  return (
+    <View style={styles.statCard}>
+      <View style={[styles.statDot, { backgroundColor: tint }]} />
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  )
+}
+
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  safe: {
-    flex: 1,
-  },
+  screen: { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1 },
   loading: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.background,
   },
-  scroll: {
-    flexGrow: 1,
-  },
-  title: {
-    color: colors.foreground,
-    fontSize: 30,
-    lineHeight: 36,
-    fontWeight: '700',
-  },
-  subtitle: {
-    color: colors.muted,
-    fontSize: 14,
-    marginTop: 8,
-  },
+  scroll: { flexGrow: 1 },
+  title: { color: colors.foreground, fontSize: 30, lineHeight: 36, fontWeight: '700' },
+  subtitle: { color: colors.muted, fontSize: 14, marginTop: 8 },
   card: {
     marginTop: 24,
     borderRadius: 24,
@@ -165,26 +163,22 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.lime,
   },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
+  avatarImage: { width: '100%', height: '100%' },
+  avatarInitials: { color: colors.lime, fontSize: 24, fontWeight: '700' },
+  name: { color: colors.foreground, fontSize: 20, fontWeight: '700', marginTop: 16 },
+  email: { color: colors.muted, fontSize: 13, marginTop: 4 },
+  statsRow: { marginTop: 16, flexDirection: 'row', gap: 10 },
+  statCard: {
+    flex: 1,
+    borderRadius: 16,
+    padding: 14,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
-  avatarInitials: {
-    color: colors.lime,
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  name: {
-    color: colors.foreground,
-    fontSize: 20,
-    fontWeight: '700',
-    marginTop: 16,
-  },
-  email: {
-    color: colors.muted,
-    fontSize: 13,
-    marginTop: 4,
-  },
+  statDot: { width: 6, height: 6, borderRadius: 3, marginBottom: 8 },
+  statValue: { color: colors.foreground, fontSize: 18, fontWeight: '700' },
+  statLabel: { color: colors.muted, fontSize: 11, marginTop: 2 },
   signOutButton: {
     marginTop: 24,
     height: 52,
@@ -197,12 +191,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.cardBorder,
   },
-  signOutLabel: {
-    color: colors.danger,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
+  signOutLabel: { color: colors.danger, fontSize: 15, fontWeight: '600' },
+  pressed: { opacity: 0.7 },
 })

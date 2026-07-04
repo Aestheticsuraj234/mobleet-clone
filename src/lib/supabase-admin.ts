@@ -1,71 +1,36 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-let adminClient: SupabaseClient | null = null
-let authClient: SupabaseClient | null = null
+let admin: SupabaseClient | null = null
+let auth: SupabaseClient | null = null
 
-function getSupabaseUrl() {
-  const url = process.env.EXPO_PUBLIC_SUPABASE_URL
-  if (!url) {
-    throw new Error(
-      'EXPO_PUBLIC_SUPABASE_URL is missing. Add it to .env and restart Expo.'
-    )
-  }
-  return url
+const clientOpts = {
+  auth: { autoRefreshToken: false, persistSession: false },
 }
 
-/** Anon/publishable client — used only to validate the caller's JWT. */
-function getSupabaseAuthClient() {
-  if (authClient) return authClient
-
-  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_KEY
-  if (!anonKey) {
-    throw new Error(
-      'EXPO_PUBLIC_SUPABASE_KEY is missing. Add it to .env and restart Expo.'
-    )
-  }
-
-  authClient = createClient(getSupabaseUrl(), anonKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
-
-  return authClient
+function env(name: string) {
+  const value = process.env[name]?.trim()
+  if (!value) throw new Error(`${name} is missing. Add it to .env and restart Expo.`)
+  return value
 }
 
-/** Service-role client for API routes only. Never import this in client code. */
+function getAuthClient() {
+  auth ??= createClient(env('EXPO_PUBLIC_SUPABASE_URL'), env('EXPO_PUBLIC_SUPABASE_KEY'), clientOpts)
+  return auth
+}
+
 export function getSupabaseAdmin() {
-  if (adminClient) return adminClient
-
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-  if (!serviceRoleKey) {
-    throw new Error(
-      'SUPABASE_SERVICE_ROLE_KEY is missing. Add the service_role key from Supabase Dashboard → Project Settings → API to your .env, then restart Expo.'
-    )
-  }
-
-  adminClient = createClient(getSupabaseUrl(), serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
-
-  return adminClient
+  admin ??= createClient(
+    env('EXPO_PUBLIC_SUPABASE_URL'),
+    env('SUPABASE_SERVICE_ROLE_KEY'),
+    clientOpts
+  )
+  return admin
 }
 
 export async function getUserFromRequest(request: Request) {
-  const header = request.headers.get('Authorization')
-  if (!header?.startsWith('Bearer ')) {
-    return null
-  }
+  const token = request.headers.get('Authorization')?.replace('Bearer ', '').trim()
+  if (!token) return null
 
-  const accessToken = header.slice('Bearer '.length).trim()
-  if (!accessToken) return null
-
-  const auth = getSupabaseAuthClient()
-  const { data, error } = await auth.auth.getUser(accessToken)
-  if (error || !data.user) return null
-  return data.user
+  const { data } = await getAuthClient().auth.getUser(token)
+  return data.user ?? null
 }

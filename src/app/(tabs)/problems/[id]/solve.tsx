@@ -170,10 +170,7 @@ export default function SolveProblemScreen() {
         Alert.alert('Accepted', 'All test cases passed. Problem marked as solved.')
       }
     } catch (err) {
-      Alert.alert(
-        'Submit failed',
-        err instanceof Error ? err.message : 'Unknown error'
-      )
+      Alert.alert('Submit failed', err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setRunning(false)
     }

@@ -2,7 +2,6 @@ import { colors } from '@/lib/theme'
 import { supabase } from '@/lib/supabase'
 
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD'
-
 export type LanguageId = 'javascript' | 'python' | 'java'
 
 export type LanguageExample = {
@@ -29,33 +28,22 @@ export type Problem = ProblemListItem & {
   updated_at: string
 }
 
-const LIST_COLUMNS =
-  'id, title, difficulty, tags, created_at' as const
-
-const DETAIL_COLUMNS =
-  'id, title, description, difficulty, tags, examples, constraints, hints, editorial, code_snippets, created_at, updated_at' as const
-
-export function difficultyLabel(difficulty: Difficulty) {
-  switch (difficulty) {
-    case 'EASY':
-      return 'Easy'
-    case 'MEDIUM':
-      return 'Medium'
-    case 'HARD':
-      return 'Hard'
-  }
+export type SubmissionListItem = {
+  id: string
+  language: string
+  status: string
+  memory: string | null
+  time: string | null
+  created_at: string
 }
 
-export function difficultyTint(difficulty: Difficulty) {
-  switch (difficulty) {
-    case 'EASY':
-      return { fg: colors.success, bg: colors.successBg }
-    case 'MEDIUM':
-      return { fg: colors.warning, bg: colors.warningBg }
-    case 'HARD':
-      return { fg: colors.danger, bg: colors.dangerBg }
-  }
+const LANGUAGE_KEYS: Record<LanguageId, string> = {
+  javascript: 'JAVASCRIPT',
+  python: 'PYTHON',
+  java: 'JAVA',
 }
+
+export const LANGUAGE_ORDER: LanguageId[] = ['javascript', 'python', 'java']
 
 export const LANGUAGE_LABEL: Record<LanguageId, string> = {
   javascript: 'JavaScript',
@@ -75,19 +63,18 @@ export const LANGUAGE_BADGE: Record<LanguageId, string> = {
   java: 'JV',
 }
 
-export const LANGUAGE_ORDER: LanguageId[] = ['javascript', 'python', 'java']
-
-const LANGUAGE_KEYS: Record<LanguageId, string> = {
-  javascript: 'JAVASCRIPT',
-  python: 'PYTHON',
-  java: 'JAVA',
+export function difficultyLabel(difficulty: Difficulty) {
+  return difficulty[0] + difficulty.slice(1).toLowerCase()
 }
 
-export function getAvailableLanguages(problem: Problem): LanguageId[] {
-  return LANGUAGE_ORDER.filter((lang) => {
-    const key = LANGUAGE_KEYS[lang]
-    return typeof problem.code_snippets?.[key] === 'string'
-  })
+export function difficultyTint(difficulty: Difficulty) {
+  if (difficulty === 'EASY') return { fg: colors.success, bg: colors.successBg }
+  if (difficulty === 'MEDIUM') return { fg: colors.warning, bg: colors.warningBg }
+  return { fg: colors.danger, bg: colors.dangerBg }
+}
+
+export function getAvailableLanguages(problem: Problem) {
+  return LANGUAGE_ORDER.filter((lang) => problem.code_snippets?.[LANGUAGE_KEYS[lang]])
 }
 
 export function getStarterCode(problem: Problem, language: LanguageId) {
@@ -96,27 +83,26 @@ export function getStarterCode(problem: Problem, language: LanguageId) {
 
 export function getExamples(problem: Problem): LanguageExample[] {
   const examples = problem.examples
-  if (!examples || typeof examples !== 'object') return []
-  if (Array.isArray(examples)) return examples as LanguageExample[]
-  return Object.values(examples).filter(
-    (item): item is LanguageExample =>
-      !!item && typeof item === 'object' && 'input' in item && 'output' in item
-  )
+  if (!examples) return []
+  if (Array.isArray(examples)) return examples
+  return Object.values(examples)
 }
 
 export function getConstraintLines(constraints: string) {
-  return constraints
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
+  return constraints.split('\n').map((line) => line.trim()).filter(Boolean)
+}
+
+export function toDateKey(date: Date) {
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${m}-${d}`
 }
 
 export async function fetchProblems() {
   const { data, error } = await supabase
     .from('problems')
-    .select(LIST_COLUMNS)
+    .select('id, title, difficulty, tags, created_at')
     .order('created_at', { ascending: true })
-
   if (error) throw error
   return (data ?? []) as ProblemListItem[]
 }
@@ -124,10 +110,11 @@ export async function fetchProblems() {
 export async function fetchProblemById(id: string) {
   const { data, error } = await supabase
     .from('problems')
-    .select(DETAIL_COLUMNS)
+    .select(
+      'id, title, description, difficulty, tags, examples, constraints, hints, editorial, code_snippets, created_at, updated_at'
+    )
     .eq('id', id)
     .maybeSingle()
-
   if (error) throw error
   return data as Problem | null
 }
@@ -137,7 +124,38 @@ export async function fetchSolvedCount(userId: string) {
     .from('problem_solved')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
-
   if (error) throw error
   return count ?? 0
+}
+
+export async function fetchUserSubmissionsForProblem(userId: string, problemId: string) {
+  const { data, error } = await supabase
+    .from('submissions')
+    .select('id, language, status, memory, time, created_at')
+    .eq('user_id', userId)
+    .eq('problem_id', problemId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as SubmissionListItem[]
+}
+
+export async function fetchUserSubmissionActivity(userId: string, days = 365) {
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  start.setDate(start.getDate() - (days - 1))
+
+  const { data, error } = await supabase
+    .from('submissions')
+    .select('created_at')
+    .eq('user_id', userId)
+    .gte('created_at', start.toISOString())
+
+  if (error) throw error
+
+  const counts = new Map<string, number>()
+  for (const row of data ?? []) {
+    const key = toDateKey(new Date(row.created_at))
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  return counts
 }
