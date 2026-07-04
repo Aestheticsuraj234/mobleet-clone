@@ -3,6 +3,8 @@ import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
 import { useEffect } from 'react'
+import { ActivityIndicator, View } from 'react-native'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 import 'react-native-url-polyfill/auto'
 
 SplashScreen.preventAutoHideAsync()
@@ -23,15 +25,31 @@ function RootNavigator() {
     if (isLoading) return
 
     const inAuthGroup = segments[0] === '(auth)'
+    const inAuthCallback = segments[0] === 'auth'
 
-    if (!session && !inAuthGroup) {
-      router.replace('/(auth)/sign-in')
+    if (!session && !inAuthGroup && !inAuthCallback) {
+      router.replace('/(auth)/sign-in' as never)
     } else if (session && inAuthGroup) {
-      router.replace('/')
+      router.replace('/' as never)
     }
 
     SplashScreen.hideAsync()
   }, [session, isLoading, segments, router])
+
+  if (isLoading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#0a0a0c',
+        }}
+      >
+        <ActivityIndicator color="#bdf06e" />
+      </View>
+    )
+  }
 
   return (
     <Stack
@@ -40,15 +58,19 @@ function RootNavigator() {
         contentStyle: { backgroundColor: '#0a0a0c' },
         animation: 'fade',
       }}
-    />
+    >
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="auth/callback" />
+    </Stack>
   )
 }
 
 export default function RootLayout() {
   return (
-    <>
+    <SafeAreaProvider>
       <StatusBar style="light" />
       <RootNavigator />
-    </>
+    </SafeAreaProvider>
   )
 }

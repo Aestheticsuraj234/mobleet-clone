@@ -21,7 +21,7 @@
       "package": "com.codebysuraj.mobleet"
     },
     "web": {
-      "output": "static",
+      "output": "server",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -48,7 +48,9 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {},
+      "router": {
+        "origin": false
+      },
       "eas": {
         "projectId": "3ceb8ff8-9dec-4ecf-9450-291214a17e81"
       }

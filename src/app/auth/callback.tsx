@@ -16,7 +16,7 @@ export default function AuthCallbackScreen() {
     async function finishAuth() {
       try {
         await handleDeepLink(url!)
-        router.replace('/')
+        router.replace('/' as never)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Sign-in failed.')
       }
@@ -26,8 +26,20 @@ export default function AuthCallbackScreen() {
   }, [handleDeepLink, router, url])
 
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 }}>
-      {!error ? <ActivityIndicator /> : <Text>{error}</Text>}
+    <View
+      style={{
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 12,
+        backgroundColor: '#0a0a0c',
+      }}
+    >
+      {!error ? (
+        <ActivityIndicator color="#bdf06e" />
+      ) : (
+        <Text style={{ color: '#fafafa' }}>{error}</Text>
+      )}
     </View>
   )
 }
