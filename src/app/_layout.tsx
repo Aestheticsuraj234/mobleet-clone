@@ -1,7 +1,7 @@
 import { useAuthStore } from '@/state/auth-store'
 import { Stack, useRouter, useSegments } from 'expo-router'
-import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
+import { StatusBar } from 'expo-status-bar'
 import { useEffect } from 'react'
 import { ActivityIndicator, View } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'

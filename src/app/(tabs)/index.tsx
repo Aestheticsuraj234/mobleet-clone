@@ -53,7 +53,11 @@ export default function HomeScreen() {
           <View style={styles.topRow}>
             <View style={styles.brandRow}>
               <View style={styles.logoBox}>
-                <Text style={styles.logoGlyph}>M</Text>
+                <Image
+                  source={require('../../../assets/images/logo.png')}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
               </View>
               <Text style={styles.brand}>MobLeet</Text>
             </View>
@@ -223,14 +227,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     backgroundColor: colors.limeSoft,
     borderWidth: 1,
     borderColor: colors.limeBorder,
   },
-  logoGlyph: {
-    color: colors.lime,
-    fontSize: 18,
-    fontWeight: '800',
+  logoImage: {
+    width: 26,
+    height: 26,
   },
   brand: {
     color: colors.foreground,

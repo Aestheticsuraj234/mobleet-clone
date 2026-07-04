@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Linking,
   Pressable,
   ScrollView,
@@ -15,7 +16,7 @@ import * as WebBrowser from 'expo-web-browser'
 
 import { signInWithOAuth } from '@/lib/auth'
 
-type Provider = 'github'
+type Provider = 'github' | 'google'
 
 const LIME = '#bdf06e'
 const PEACH = '#fdba74'
@@ -58,7 +59,11 @@ export default function SignInScreen() {
         >
           <View style={styles.header}>
             <View style={styles.logoBox}>
-              <Text style={styles.logoGlyph}>M</Text>
+              <Image
+                source={require('../../../assets/images/logo.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </View>
             <Text style={styles.version}>v1.0</Text>
           </View>
@@ -96,7 +101,7 @@ export default function SignInScreen() {
               icon="shield"
               color="#a5f3fc"
               title="Private & secure"
-              subtitle="Better Auth · end-to-end sessions"
+              subtitle="Supabase Auth · secure sessions"
             />
           </View>
 
@@ -104,8 +109,8 @@ export default function SignInScreen() {
             <Pressable
               style={({ pressed }) => [
                 styles.githubButton,
-                pressed && styles.githubButtonPressed,
-                loading !== null && styles.githubButtonDisabled,
+                pressed && styles.buttonPressed,
+                loading !== null && styles.buttonDisabled,
               ]}
               disabled={loading !== null}
               onPress={() => handleSignIn('github')}
@@ -117,6 +122,27 @@ export default function SignInScreen() {
                   <AntDesign name="github" size={18} color={BACKGROUND} />
                   <Text style={styles.githubButtonLabel}>
                     Continue with GitHub
+                  </Text>
+                </>
+              )}
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.googleButton,
+                pressed && styles.buttonPressed,
+                loading !== null && styles.buttonDisabled,
+              ]}
+              disabled={loading !== null}
+              onPress={() => handleSignIn('google')}
+            >
+              {loading === 'google' ? (
+                <ActivityIndicator color={FOREGROUND} />
+              ) : (
+                <>
+                  <AntDesign name="google" size={18} color={FOREGROUND} />
+                  <Text style={styles.googleButtonLabel}>
+                    Continue with Google
                   </Text>
                 </>
               )}
@@ -197,15 +223,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     backgroundColor: 'rgba(189, 240, 110, 0.14)',
     borderWidth: 1,
     borderColor: 'rgba(189, 240, 110, 0.32)',
   },
-  logoGlyph: {
-    color: LIME,
-    fontSize: 22,
-    fontWeight: '700',
-    lineHeight: 24,
+  logoImage: {
+    width: 28,
+    height: 28,
   },
   version: {
     color: MUTED,
@@ -307,10 +332,22 @@ const styles = StyleSheet.create({
     backgroundColor: LIME,
     paddingHorizontal: 20,
   },
-  githubButtonPressed: {
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    minHeight: 52,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    paddingHorizontal: 20,
+  },
+  buttonPressed: {
     opacity: 0.88,
   },
-  githubButtonDisabled: {
+  buttonDisabled: {
     opacity: 0.6,
   },
   githubButtonLabel: {
@@ -318,6 +355,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  googleButtonLabel: {
+    color: FOREGROUND,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
   legal: {
     color: MUTED,
     fontSize: 12,
